@@ -6,10 +6,10 @@ import ta
 from datetime import datetime
 
 # Leer variables de entorno
-api_key = os.getenv("BYBIT_API_KEY")
-api_secret = os.getenv("BYBIT_API_SECRET")
-telegram_token = os.getenv("TELEGRAM_TOKEN")
-telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
+api_key = os.getenv(BYBIT_API_KEY)
+api_secret = os.getenv(BYBIT_API_SECRET)
+telegram_token = os.getenv(TELEGRAM_TOKEN)
+telegram_chat_id = os.getenv(TELEGRAM_CHAT_ID)
 
 exchange = ccxt.bybit({
     'apiKey': api_key,
