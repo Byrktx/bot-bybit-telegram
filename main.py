@@ -1,19 +1,16 @@
+import os
 import ccxt
 import pandas as pd
-import time
 import requests
 import ta
 from datetime import datetime
 
-# === API DE BYBIT ===
-api_key = '6R1hjZZk2O6hjjyei1'
-api_secret = 'RSMisCCXOhsSuFKkC1lSwX4JjXXQwypDSQrF'
+# Leer variables de entorno
+api_key = os.getenv("BYBIT_API_KEY")
+api_secret = os.getenv("BYBIT_API_SECRET")
+telegram_token = os.getenv("TELEGRAM_TOKEN")
+telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-# === TELEGRAM BOT ===
-telegram_token = '7625060062:AAHzUlJZRnxGqlFqo-owajzxIjdg2xOwoH4'
-telegram_chat_id = '6751348393'
-
-# === CONFIGURACIÓN DEL EXCHANGE (BYBIT FUTUROS) ===
 exchange = ccxt.bybit({
     'apiKey': api_key,
     'secret': api_secret,
@@ -36,8 +33,8 @@ def send_telegram(msg):
     data = {'chat_id': telegram_chat_id, 'text': msg}
     try:
         requests.post(url, data=data)
-    except:
-        print("❌ Error al enviar mensaje a Telegram.")
+    except Exception as e:
+        print(f"Error al enviar mensaje a Telegram: {e}")
 
 def get_ohlcv(symbol):
     bars = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=100)
@@ -52,8 +49,8 @@ def add_indicators(df):
     return df
 
 def detectar_soporte_resistencia(df):
-    soporte = df['low'].max()
-    resistencia = df['high'].max()
+    soporte = df['low'].min()  # soporte es mínimo
+    resistencia = df['high'].max()  # resistencia es máximo
     return soporte, resistencia
 
 def check_signal(df, soporte, resistencia):
@@ -79,19 +76,26 @@ def save_to_csv(symbol, side, price, tp, sl):
 
 def open_order(symbol, side):
     balance = exchange.fetch_balance()
-    usdt = balance['total']['USDT']
+    usdt = balance['total'].get('USDT', 0)
+    if usdt == 0:
+        send_telegram(f"❌ No hay saldo USDT para abrir orden en {symbol}")
+        return None
     ticker = exchange.fetch_ticker(symbol)
     price = ticker['last']
     amount = (usdt * leverage) / price
 
-    if side == 'buy':
-        order = exchange.create_market_buy_order(symbol, amount)
-        tp = price + (price * tp_percent / 100)
-        sl = price - (price * sl_percent / 100)
-    else:
-        order = exchange.create_market_sell_order(symbol, amount)
-        tp = price - (price * tp_percent / 100)
-        sl = price + (price * sl_percent / 100)
+    try:
+        if side == 'buy':
+            order = exchange.create_market_buy_order(symbol, amount)
+            tp = price + (price * tp_percent / 100)
+            sl = price - (price * sl_percent / 100)
+        else:
+            order = exchange.create_market_sell_order(symbol, amount)
+            tp = price - (price * tp_percent / 100)
+            sl = price + (price * sl_percent / 100)
+    except Exception as e:
+        send_telegram(f"❌ Error al abrir orden en {symbol}: {e}")
+        return None
 
     msg = f"📈 {side.upper()} en {symbol}\n💵 Precio: {price:.2f}\n🎯 TP: {tp:.2f} | SL: {sl:.2f}"
     send_telegram(msg)
@@ -118,8 +122,6 @@ def run_bot():
         except Exception as e:
             send_telegram(f"⚠️ Error en ejecución para {symbol}: {str(e)}")
 
-send_telegram("🤖 BOT DE TRADING INICIADO. Ahora analiza BTC/USDT y ETH/USDT cada 5 minutos.")
-
-while True:
+if __name__ == "__main__":
+    send_telegram("🤖 BOT DE TRADING INICIADO. Analiza BTC/USDT y ETH/USDT.")
     run_bot()
-    time.sleep(300)
